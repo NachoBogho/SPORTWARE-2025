@@ -35,12 +35,13 @@ interface ReporteIngresos {
   total: number
   porTipo: Record<string, number>
   porDia: Record<string, number>
+  cantidadReservas?: number
 }
 
 interface ReporteUso {
-  total: number
-  porCancha: Record<string, number>
-  porTipo: Record<string, number>
+  total: number // total de reservas
+  porCancha: Record<string, number> // nombre cancha -> cantidadReservas
+  porTipo: Record<string, number> // tipo -> cantidadReservas
 }
 
 interface ReporteClientes {
@@ -97,26 +98,55 @@ const Reportes = () => {
     setError('')
     try {
       if (tipoReporte === 'ingresos') {
+        // Backend devuelve ingresoTotal, ingresosPorTipo, ingresosPorDia
         const { data } = await axios.get('/api/reportes/ingresos', { params: { fechaInicio, fechaFin } })
         setReporteIngresos({
-          total: Number(data?.total || 0),
-          porTipo: (data?.porTipo && typeof data.porTipo === 'object') ? data.porTipo : {},
-          porDia: (data?.porDia && typeof data.porDia === 'object') ? data.porDia : {}
+          total: Number(data?.ingresoTotal || 0),
+          porTipo: (data?.ingresosPorTipo && typeof data.ingresosPorTipo === 'object') ? data.ingresosPorTipo : {},
+          porDia: (data?.ingresosPorDia && typeof data.ingresosPorDia === 'object') ? data.ingresosPorDia : {},
+          cantidadReservas: Number(data?.cantidadReservas || 0)
         })
         setReporteUso(null); setReporteClientes(null)
       } else if (tipoReporte === 'uso') {
-        const { data } = await axios.get('/api/reportes/uso', { params: { fechaInicio, fechaFin } })
+        // Endpoint real: /uso-canchas
+        const { data } = await axios.get('/api/reportes/uso-canchas', { params: { fechaInicio, fechaFin } })
+        // data.usoPorCancha: id -> { nombre, tipo, cantidadReservas, horasReservadas, ingresos }
+        const porCancha: Record<string, number> = {}
+        const porTipo: Record<string, number> = {}
+        if (data?.usoPorCancha && typeof data.usoPorCancha === 'object') {
+          Object.values<any>(data.usoPorCancha).forEach((c: any) => {
+            if (c?.nombre) porCancha[c.nombre] = Number(c.cantidadReservas || 0)
+            if (c?.tipo) {
+              porTipo[c.tipo] = (porTipo[c.tipo] || 0) + Number(c.cantidadReservas || 0)
+            }
+          })
+        }
+        // Alternativamente data.usoPorTipo trae estructura con horas/ingresos, pero para esta vista solo usamos cantidadReservas
+        if (Object.keys(porTipo).length === 0 && data?.usoPorTipo && typeof data.usoPorTipo === 'object') {
+          Object.entries<any>(data.usoPorTipo).forEach(([tipo, val]: any) => {
+            porTipo[tipo] = Number(val?.cantidadReservas || 0)
+          })
+        }
         setReporteUso({
-          total: Number(data?.total || 0),
-            porCancha: (data?.porCancha && typeof data.porCancha === 'object') ? data.porCancha : {},
-            porTipo: (data?.porTipo && typeof data.porTipo === 'object') ? data.porTipo : {}
+          total: Number(data?.totalReservas || 0),
+          porCancha,
+          porTipo
         })
         setReporteIngresos(null); setReporteClientes(null)
       } else if (tipoReporte === 'clientes') {
         const { data } = await axios.get('/api/reportes/clientes', { params: { fechaInicio, fechaFin } })
-        setReporteClientes({
-          clientes: Array.isArray(data?.clientes) ? data.clientes : []
-        })
+        // Transformar estructura backend -> frontend esperado
+        const clientesTransformados = Array.isArray(data?.clientes)
+          ? data.clientes.map((item: any) => ({
+              _id: item?.cliente?._id || '',
+              nombre: item?.cliente?.nombre || '',
+              apellido: item?.cliente?.apellido || '',
+              email: item?.cliente?.email || '',
+              reservas: Number(item?.cantidadReservas || 0),
+              gastoTotal: Number(item?.gastoTotal || 0)
+            }))
+          : []
+        setReporteClientes({ clientes: clientesTransformados })
         setReporteIngresos(null); setReporteUso(null)
       }
     } catch (err: any) {
@@ -246,9 +276,9 @@ const Reportes = () => {
         labels: tipoEntries.map(([t]) => t),
         datasets: [{
           label: 'Reservas por tipo',
-            data: tipoEntries.map(([, v]) => Number(v || 0)),
-            backgroundColor: ['#0D9F6F','#3B82F6','#F59E0B','#EF4444','#8B5CF6'],
-            borderWidth: 1
+          data: tipoEntries.map(([, v]) => Number(v || 0)),
+          backgroundColor: ['#0D9F6F','#3B82F6','#F59E0B','#EF4444','#8B5CF6'],
+          borderWidth: 1
         }]
       }
       return { usoPorCancha, usoPorTipo }
@@ -351,10 +381,13 @@ const Reportes = () => {
           {tipoReporte === 'ingresos' && reporteIngresos && (
             <div className="space-y-6">
               <div className="card">
-                <h2 className="text-xl font-medium text-background-900 mb-4">
+                <h2 className="text-xl font-medium text-background-900 mb-2">
                   Ingresos Totales: {config.moneda} {reporteIngresos.total.toFixed(2)}
                 </h2>
-                <p className="text-background-500">
+                <p className="text-background-500 text-sm mb-2">
+                  Reservas contabilizadas: {reporteIngresos.cantidadReservas || 0}
+                </p>
+                <p className="text-background-500 text-sm">
                   Período: {format(new Date(fechaInicio), 'dd/MM/yyyy')} - {format(new Date(fechaFin), 'dd/MM/yyyy')}
                 </p>
               </div>
@@ -436,10 +469,10 @@ const Reportes = () => {
           {tipoReporte === 'uso' && reporteUso && (
             <div className="space-y-6">
               <div className="card">
-                <h2 className="text-xl font-medium text-background-900 mb-4">
+                <h2 className="text-xl font-medium text-background-900 mb-2">
                   Total de Reservas: {reporteUso.total}
                 </h2>
-                <p className="text-background-500">
+                <p className="text-background-500 text-sm">
                   Período: {format(new Date(fechaInicio), 'dd/MM/yyyy')} - {format(new Date(fechaFin), 'dd/MM/yyyy')}
                 </p>
               </div>

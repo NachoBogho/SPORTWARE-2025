@@ -1,8 +1,12 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+require('dotenv').config();
+
+// Importar configuración de base de datos
+const { databaseManager, DatabaseManager } = require('./config/database');
+
 // Intentar cargar electron solo si está disponible
 let electronApp;
 try {
@@ -16,50 +20,21 @@ try {
 
 // Inicializar Express
 const app = express();
-const PORT = process.env.PORT || 3001;
+let PORT = process.env.PORT || 3001;
+
+// Configuración de CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
 
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(morgan('dev'));
-
-// Configuración de MongoDB
-const connectDB = async () => {
-  try {
-    // Usar una ruta local para la base de datos MongoDB
-    let dbPath;
-    if (electronApp) {
-      // Si estamos en la aplicación Electron, usar la ruta de usuario
-      dbPath = path.join(electronApp.getPath('userData'), 'sportware-db');
-    } else {
-      // En modo desarrollo, usar una ruta predeterminada
-      dbPath = path.join(__dirname, 'data', 'sportware-db');
-    }
-    
-    await mongoose.connect(`mongodb://127.0.0.1:27017/sportware`, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      dbName: 'sportware'
-    });
-    console.log('MongoDB conectado');
-
-    // Drop índice de email si existe
-    try {
-      const coll = mongoose.connection.db.collection('clientes');
-      const indexes = await coll.indexes();
-      const emailIndex = indexes.find(i => i.name === 'email_1');
-      if (emailIndex) {
-        await coll.dropIndex('email_1');
-        console.log('Índice único email_1 eliminado');
-      }
-    } catch (dropErr) {
-      console.log('No se pudo eliminar índice email_1 (puede no existir):', dropErr.message);
-    }
-  } catch (error) {
-    console.error('Error al conectar a MongoDB:', error.message);
-    process.exit(1);
-  }
-};
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(morgan(process.env.LOG_LEVEL || 'dev'));
 
 // Importar rutas
 const reservasRoutes = require('./routes/reservas');
@@ -78,19 +53,79 @@ app.use('/api/configuracion', configuracionRoutes);
 
 // Ruta para verificar que el servidor está funcionando
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok', message: 'Servidor funcionando correctamente' });
+  const dbStatus = databaseManager.getConnectionStatus();
+  res.json({ 
+    status: 'ok', 
+    message: 'Servidor funcionando correctamente',
+    database: dbStatus,
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Ruta para información de la base de datos
+app.get('/api/db-info', (req, res) => {
+  const dbStatus = databaseManager.getConnectionStatus();
+  res.json(dbStatus);
 });
 
 // Middleware de errores (debe ir después de las rutas)
-app.use(errorHandler); // añadido
+app.use(errorHandler);
+
+// Función para iniciar el servidor con puerto dinámico
+async function startServer() {
+  try {
+    // Verificar si el puerto está disponible, si no, buscar uno libre
+    if (!(await DatabaseManager.isPortAvailable(PORT))) {
+      console.log(`⚠️ Puerto ${PORT} ocupado, buscando puerto disponible...`);
+      PORT = await DatabaseManager.findAvailablePort(PORT, PORT + 10);
+      console.log(`✅ Puerto disponible encontrado: ${PORT}`);
+    }
+
+    // Iniciar el servidor
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 Servidor backend ejecutándose en el puerto ${PORT}`);
+      console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 URL: http://localhost:${PORT}`);
+      console.log(`📊 Status: http://localhost:${PORT}/api/status`);
+    });
+
+    // Manejar errores del servidor
+    server.on('error', async (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.log(`❌ Puerto ${PORT} ocupado, buscando alternativa...`);
+        try {
+          PORT = await DatabaseManager.findAvailablePort(PORT + 1, PORT + 10);
+          console.log(`🔄 Reintentando con puerto ${PORT}...`);
+          server.close();
+          startServer();
+        } catch (portError) {
+          console.error('💥 No se pudo encontrar un puerto disponible:', portError.message);
+          process.exit(1);
+        }
+      } else {
+        console.error('💥 Error del servidor:', error.message);
+        process.exit(1);
+      }
+    });
+
+    return server;
+  } catch (error) {
+    console.error('💥 Error iniciando el servidor:', error.message);
+    process.exit(1);
+  }
+}
 
 // Iniciar el servidor solo si no estamos en modo de prueba
 if (process.env.NODE_ENV !== 'test') {
   // Conectar a MongoDB y luego iniciar el servidor
-  connectDB().then(() => {
-    app.listen(PORT, () => {
-      console.log(`Servidor backend ejecutándose en el puerto ${PORT}`);
-    });
+  databaseManager.connect().then((success) => {
+    if (success) {
+      startServer();
+    }
+  }).catch((error) => {
+    console.error('💥 Error iniciando la aplicación:', error);
+    process.exit(1);
   });
 }
 

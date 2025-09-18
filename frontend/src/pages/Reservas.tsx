@@ -2,25 +2,36 @@ import React from 'react';
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
-import { format, parseISO, isToday, isThisWeek, isThisMonth } from 'date-fns'
+import { format, parseISO, isToday, isSameWeek, isSameMonth, isSameDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarIcon, PlusIcon, TrashIcon, PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { FunnelIcon as FilterIcon } from '@heroicons/react/24/outline'
 import { useConfigStore } from '../stores/configStore'
+import DatePicker from '../components/DatePicker'
+
+// Helpers fecha dd/mm/aaaa
+function isoToDDMMYYYY(iso: string) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
+  const [y,m,d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+function ddmmyyyyToISO(raw: string): string | null {
+  const cleaned = raw.replace(/[^0-9/]/g,'')
+  const parts = cleaned.split('/')
+  if (parts.length !== 3) return null
+  const [dd,mm,yyyy] = parts
+  if (dd.length!==2||mm.length!==2||yyyy.length!==4) return null
+  const day = +dd, month = +mm, year = +yyyy
+  if (year<1900||month<1||month>12||day<1||day>31) return null
+  const date = new Date(year, month-1, day)
+  if (date.getFullYear()!==year||date.getMonth()!==month-1||date.getDate()!==day) return null
+  return date.toISOString().slice(0,10)
+}
 
 interface Reserva {
   _id: string
-  cancha: {
-    _id: string
-    nombre: string
-    tipo: string
-  }
-  cliente: {
-    _id: string
-    nombre: string
-    apellido: string
-    email: string
-  }
+  cancha: { _id: string; nombre: string; tipo: string }
+  cliente: { _id: string; nombre: string; apellido: string; email: string }
   fechaInicio: string
   fechaFin: string
   estado: 'confirmada' | 'pendiente' | 'cancelada'
@@ -33,48 +44,26 @@ interface Reserva {
 
 const Reservas = () => {
   const { config } = useConfigStore()
+  const [allReservas, setAllReservas] = useState<Reserva[]>([])
   const [reservas, setReservas] = useState<Reserva[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filtro, setFiltro] = useState('todas')
-  const [fechaFiltro, setFechaFiltro] = useState('')
+  const [filtro, setFiltro] = useState<'todas'|'hoy'|'semana'|'mes'|'fecha'>('todas')
+  const [fechaFiltroInput, setFechaFiltroInput] = useState('')
+  const [fechaFiltroISO, setFechaFiltroISO] = useState<string>('')
+  const [fechaFiltroError, setFechaFiltroError] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [reservaSeleccionada, setReservaSeleccionada] = useState<Reserva | null>(null)
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchData = async () => {
-      await fetchReservas();
-    };
-    
-    fetchData();
-    
-    return () => {
-      isMounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtro, fechaFiltro])
+  // Fetch una sola vez
+  useEffect(() => { fetchReservas() }, [])
 
   const fetchReservas = async () => {
     setLoading(true)
     setError('')
     try {
-      let url = '/api/reservas'
-      
-      // Aplicar filtros
-      if (filtro === 'hoy') {
-        url = `/api/reservas/fecha/${format(new Date(), 'yyyy-MM-dd')}`
-      } else if (filtro === 'semana') {
-        url = '/api/reservas/semana'
-      } else if (filtro === 'mes') {
-        url = '/api/reservas/mes'
-      } else if (filtro === 'fecha' && fechaFiltro) {
-        url = `/api/reservas/fecha/${fechaFiltro}`
-      }
-      
-      const response = await axios.get(url)
-      setReservas(response.data)
+      const response = await axios.get('/api/reservas')
+      setAllReservas(response.data)
     } catch (err) {
       console.error('Error al cargar reservas:', err)
       setError('Error al cargar las reservas. Por favor, intenta de nuevo.')
@@ -83,11 +72,48 @@ const Reservas = () => {
     }
   }
 
+  // Aplicar filtros cuando cambian dependencias
+  useEffect(() => {
+    applyFilters()
+  }, [allReservas, filtro, fechaFiltroISO])
+
+  function applyFilters() {
+    let data = allReservas
+    const now = new Date()
+    if (filtro === 'hoy') {
+      data = data.filter(r => isToday(parseISO(r.fechaInicio)))
+    } else if (filtro === 'semana') {
+      data = data.filter(r => isSameWeek(parseISO(r.fechaInicio), now, { weekStartsOn: 1 }))
+    } else if (filtro === 'mes') {
+      data = data.filter(r => isSameMonth(parseISO(r.fechaInicio), now))
+    } else if (filtro === 'fecha' && fechaFiltroISO) {
+      data = data.filter(r => {
+        try {
+          return isSameDay(parseISO(r.fechaInicio), parseISO(fechaFiltroISO))
+        } catch { return false }
+      })
+    }
+    setReservas(data)
+  }
+
+  function handleFechaFiltroChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value.replace(/[^0-9/]/g,'')
+    setFechaFiltroInput(val)
+    const iso = ddmmyyyyToISO(val)
+    if (!iso) {
+      setFechaFiltroError(val ? 'Fecha inválida' : '')
+      setFechaFiltroISO('')
+      return
+    }
+    setFechaFiltroError('')
+    setFechaFiltroISO(iso)
+    setFiltro('fecha')
+  }
+
   const handleCancelarReserva = async (id: string) => {
     if (!window.confirm('¿Estás seguro de que deseas cancelar esta reserva?')) return
-    
     try {
-      await axios.patch(`/api/reservas/${id}/cancelar`) // cambiado de put a patch
+      await axios.patch(`/api/reservas/${id}/cancelar`)
       fetchReservas()
     } catch (err: any) {
       console.error('Error al cancelar la reserva:', err)
@@ -97,7 +123,7 @@ const Reservas = () => {
 
   const handleMarcarPagado = async (id: string) => {
     try {
-      await axios.patch(`/api/reservas/${id}/pagar`) // cambiado de put a patch
+      await axios.patch(`/api/reservas/${id}/pagar`)
       fetchReservas()
     } catch (err: any) {
       console.error('Error al marcar como pagado:', err)
@@ -105,8 +131,7 @@ const Reservas = () => {
     }
   }
 
-  const handleEliminarReserva = async (id: string) => {
-    // Reemplazado por modal: solo abre modal
+  const handleEliminarReserva = (id: string) => {
     const r = reservas.find(r => r._id === id)
     if (!r) return
     setReservaSeleccionada(r)
@@ -126,10 +151,7 @@ const Reservas = () => {
     }
   }
 
-  const closeDeleteModal = () => {
-    setShowDeleteModal(false)
-    setReservaSeleccionada(null)
-  }
+  const closeDeleteModal = () => { setShowDeleteModal(false); setReservaSeleccionada(null) }
 
   const getEstadoClass = (estado: string) => {
     switch (estado) {
@@ -142,67 +164,62 @@ const Reservas = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-background-900">Reservas</h1>
-        <Link to="/reservas/nueva" className="btn btn-primary">
+        <Link to="/reservas/nueva" className="btn btn-primary flex items-center">
           <PlusIcon className="h-5 w-5 mr-1" />
           Nueva Reserva
         </Link>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-100 border border-red-200 rounded-md text-red-700">
-          {error}
-        </div>
+        <div className="p-4 bg-red-100 border border-red-200 rounded-md text-red-700">{error}</div>
       )}
 
       {/* Filtros */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-4">
+
           <div className="flex items-center">
             <FilterIcon className="h-5 w-5 text-background-500 mr-2" />
             <span className="text-background-700 font-medium">Filtrar por:</span>
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFiltro('todas')}
-              className={`btn ${filtro === 'todas' ? 'btn-primary' : 'btn-outline-primary'}`}
-            >
-              Todas
-            </button>
-            <button
-              onClick={() => setFiltro('hoy')}
-              className={`btn ${filtro === 'hoy' ? 'btn-primary' : 'btn-outline-primary'}`}
-            >
-              Hoy
-            </button>
-            <button
-              onClick={() => setFiltro('semana')}
-              className={`btn ${filtro === 'semana' ? 'btn-primary' : 'btn-outline-primary'}`}
-            >
-              Esta semana
-            </button>
-            <button
-              onClick={() => setFiltro('mes')}
-              className={`btn ${filtro === 'mes' ? 'btn-primary' : 'btn-outline-primary'}`}
-            >
-              Este mes
-            </button>
+            {([
+              { id: 'todas', label: 'Todas' },
+              { id: 'hoy', label: 'Hoy' },
+              { id: 'semana', label: 'Esta semana' },
+              { id: 'mes', label: 'Este mes' }
+            ] as const).map(btn => (
+              <button
+                key={btn.id}
+                onClick={() => setFiltro(btn.id)}
+                className={`btn ${filtro === btn.id ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <CalendarIcon className="h-5 w-5 text-background-500" />
-            <input
-              type="date"
-              value={fechaFiltro}
-              onChange={(e) => {
-                setFechaFiltro(e.target.value)
-                setFiltro('fecha')
+          {/* Calendario al extremo derecho */}
+          <div className="flex items-center gap-2 lg:ml-auto mr-4 flex-shrink-0">
+            <DatePicker
+              value={fechaFiltroISO}
+              onChange={(iso) => {
+                setFechaFiltroISO(iso)
+                setFechaFiltroInput(isoToDDMMYYYY(iso))
+                if (!iso) {
+                  setFiltro('todas')
+                } else {
+                  setFiltro('fecha')
+                }
               }}
-              className="input"
+              onClear={() => { setFechaFiltroInput(''); setFechaFiltroISO(''); setFiltro('todas') }}
             />
           </div>
+
+          {fechaFiltroError && <p className="w-full text-xs text-red-500">{fechaFiltroError}</p>}
         </div>
       </div>
 
@@ -224,15 +241,9 @@ const Reservas = () => {
             </thead>
             <tbody className="table-body">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center">
-                    <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={8} className="px-6 py-4 text-center"><div className="flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div></div></td></tr>
               ) : reservas.length > 0 ? (
-                reservas.map((reserva) => (
+                reservas.map(reserva => (
                   <tr key={reserva._id} className="table-row">
                     <td className="table-cell">
                       <Link to={`/clientes/${reserva.cliente._id}`} className="text-primary hover:underline">
@@ -252,51 +263,27 @@ const Reservas = () => {
                       {format(parseISO(reserva.fechaInicio), 'HH:mm')} - {format(parseISO(reserva.fechaFin), 'HH:mm')}
                     </td>
                     <td className="table-cell">
-                      <span className={`badge ${getEstadoClass(reserva.estado)}`}>
-                        {reserva.estado}
-                      </span>
+                      <span className={`badge ${getEstadoClass(reserva.estado)}`}>{reserva.estado}</span>
                     </td>
-                    <td className="table-cell">
-                      {config.moneda} {reserva.precio.toFixed(2)}
-                    </td>
+                    <td className="table-cell">{config.moneda} {reserva.precio.toFixed(2)}</td>
                     <td className="table-cell">
                       {reserva.pagado ? (
-                        <span className="text-green-600 flex items-center">
-                          <CheckIcon className="h-5 w-5 mr-1" />
-                          Sí
-                        </span>
+                        <span className="text-green-600 flex items-center"><CheckIcon className="h-5 w-5 mr-1" />Sí</span>
                       ) : (
-                        <button 
-                          onClick={() => handleMarcarPagado(reserva._id)}
-                          className="text-amber-600 hover:text-amber-800 flex items-center"
-                          disabled={reserva.estado === 'cancelada'}
-                        >
-                          <XMarkIcon className="h-5 w-5 mr-1" />
-                          No
+                        <button onClick={() => handleMarcarPagado(reserva._id)} className="text-amber-600 hover:text-amber-800 flex items-center" disabled={reserva.estado === 'cancelada'}>
+                          <XMarkIcon className="h-5 w-5 mr-1" />No
                         </button>
                       )}
                     </td>
                     <td className="table-cell">
                       <div className="flex items-center space-x-2">
-                        <Link to={`/reservas/editar/${reserva._id}`} className="btn-icon btn-icon-primary">
-                          <PencilIcon className="h-4 w-4" />
-                        </Link>
-                        
+                        <Link to={`/reservas/editar/${reserva._id}`} className="btn-icon btn-icon-primary"><PencilIcon className="h-4 w-4" /></Link>
                         {reserva.estado !== 'cancelada' && (
-                          <button 
-                            onClick={() => handleCancelarReserva(reserva._id)}
-                            className="btn-icon btn-icon-warning"
-                            title="Cancelar reserva"
-                          >
+                          <button onClick={() => handleCancelarReserva(reserva._id)} className="btn-icon btn-icon-warning" title="Cancelar reserva">
                             <XMarkIcon className="h-4 w-4" />
                           </button>
                         )}
-                        
-                        <button 
-                          onClick={() => handleEliminarReserva(reserva._id)}
-                          className="btn-icon btn-icon-danger"
-                          title="Eliminar reserva"
-                        >
+                        <button onClick={() => handleEliminarReserva(reserva._id)} className="btn-icon btn-icon-danger" title="Eliminar reserva">
                           <TrashIcon className="h-4 w-4" />
                         </button>
                       </div>
@@ -304,11 +291,7 @@ const Reservas = () => {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-background-500">
-                    No hay reservas que coincidan con los filtros seleccionados
-                  </td>
-                </tr>
+                <tr><td colSpan={8} className="px-6 py-4 text-center text-background-500">No hay reservas que coincidan con los filtros seleccionados</td></tr>
               )}
             </tbody>
           </table>
@@ -321,35 +304,13 @@ const Reservas = () => {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeDeleteModal}></div>
           <div className="relative z-50 w-full max-w-md mx-4 rounded-lg shadow-lg bg-white border border-background-200">
             <div className="px-6 py-5">
-              <h3 className="text-lg font-semibold text-background-900 mb-2">
-                Eliminar reserva
-              </h3>
+              <h3 className="text-lg font-semibold text-background-900 mb-2">Eliminar reserva</h3>
               <p className="text-background-600 text-sm leading-relaxed text-gray-900">
-                ¿Seguro que deseas eliminar la reserva de{' '}
-                <span className="font-medium">
-                  {reservaSeleccionada.cliente.nombre} {reservaSeleccionada.cliente.apellido}
-                </span>{' '}
-                para la cancha{' '}
-                <span className="font-medium">
-                  {reservaSeleccionada.cancha.nombre}
-                </span>{' '}
-                el{' '}
-                {format(parseISO(reservaSeleccionada.fechaInicio), 'dd/MM/yyyy HH:mm', { locale: es })}?
-                Esta acción es permanente.
+                ¿Seguro que deseas eliminar la reserva de <span className="font-medium">{reservaSeleccionada.cliente.nombre} {reservaSeleccionada.cliente.apellido}</span> para la cancha <span className="font-medium">{reservaSeleccionada.cancha.nombre}</span> el {format(parseISO(reservaSeleccionada.fechaInicio), 'dd/MM/yyyy HH:mm', { locale: es })}? Esta acción es permanente.
               </p>
               <div className="mt-5 flex justify-end gap-3">
-                <button
-                  onClick={closeDeleteModal}
-                  className="btn btn-outline-primary text-gray-900"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="btn btn-outline-danger text-gray-900 bg-danger/10 hover:bg-danger/20"
-                >
-                  Eliminar
-                </button>
+                <button onClick={closeDeleteModal} className="btn btn-secondary text-gray-900">Cancelar</button>
+                <button onClick={confirmDelete} className="btn btn-danger text-white">Eliminar</button>
               </div>
             </div>
           </div>

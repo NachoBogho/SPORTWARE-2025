@@ -37,8 +37,8 @@ const CanchaSchema = new Schema({
   },
   diasDisponibles: {
     type: [String],
-    enum: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
-    default: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    enum: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sábado', 'domingo'],
+    default: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sábado', 'domingo']
   },
   createdAt: {
     type: Date,

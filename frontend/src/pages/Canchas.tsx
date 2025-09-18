@@ -15,15 +15,8 @@ interface Cancha {
   estado: 'disponible' | 'mantenimiento' | 'inactiva'
   horarioApertura: string
   horarioCierre: string
-  diasDisponibles: {
-    lunes: boolean
-    martes: boolean
-    miercoles: boolean
-    jueves: boolean
-    viernes: boolean
-    sabado: boolean
-    domingo: boolean
-  }
+  // Puede venir como objeto de booleans o como array desde el backend
+  diasDisponibles: Record<string, boolean> | Array<string | number>
   createdAt: string
   updatedAt: string
 }
@@ -184,16 +177,61 @@ const Canchas = () => {
                 
                 <div>
                   <span className="text-background-500 block mb-1">Días disponibles:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.entries(cancha.diasDisponibles).map(([dia, disponible]) => (
-                      <span 
-                        key={dia} 
-                        className={`text-xs px-2 py-1 rounded-full ${disponible ? 'bg-green-100 text-green-800' : 'bg-background-100 text-background-400'}`}
-                      >
-                        {dia.charAt(0).toUpperCase() + dia.slice(1)}
-                      </span>
-                    ))}
-                  </div>
+                  {(() => {
+                    const idxOrder = [1, 2, 3, 4, 5, 6, 0] 
+                    const idxToLabel: Record<number, string> = { 0: 'D', 1: 'L', 2: 'M', 3: 'M', 4: 'J', 5: 'V', 6: 'S' }
+                    const dayToIdx: Record<string, number> = {
+                      domingo: 0,
+                      lunes: 1,
+                      martes: 2,
+                      miercoles: 3,
+                      miércoles: 3,
+                      jueves: 4,
+                      viernes: 5,
+                      sabado: 6,
+                      sábado: 6,
+                    }
+
+                    const active = new Set<number>()
+
+                    if (Array.isArray(cancha.diasDisponibles)) {
+                      for (const v of cancha.diasDisponibles as Array<string | number>) {
+                        if (typeof v === 'number') {
+                          if (v >= 0 && v <= 6) active.add(v)
+                        } else if (typeof v === 'string') {
+                          const lower = v.toLowerCase()
+                          // Si llega como "0-6" o nombre del día
+                          const asNum = Number(lower)
+                          if (!Number.isNaN(asNum)) {
+                            if (asNum >= 0 && asNum <= 6) active.add(asNum)
+                          } else if (dayToIdx[lower] !== undefined) {
+                            active.add(dayToIdx[lower])
+                          }
+                        }
+                      }
+                    } else if (cancha.diasDisponibles && typeof cancha.diasDisponibles === 'object') {
+                      const obj = cancha.diasDisponibles as Record<string, boolean>
+                      Object.entries(obj).forEach(([k, val]) => {
+                        if (val) {
+                          const idx = dayToIdx[k.toLowerCase()]
+                          if (idx !== undefined) active.add(idx)
+                        }
+                      })
+                    }
+
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {idxOrder.map((i) => (
+                          <span
+                            key={i}
+                            className={`text-xs px-2 py-1 rounded-full ${active.has(i) ? 'bg-green-100 text-green-800' : 'bg-background-100 text-background-400'}`}
+                          >
+                            {idxToLabel[i]}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
                 
                 {cancha.descripcion && (

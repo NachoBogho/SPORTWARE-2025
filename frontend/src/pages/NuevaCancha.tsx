@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { toast } from 'react-hot-toast'
 import { useConfigStore } from '../stores/configStore'
+import { useNotificationsStore } from '../stores/notificationsStore'
 
 interface FormData {
   nombre: string
@@ -18,13 +19,14 @@ interface FormData {
 const NuevaCancha = () => {
   const navigate = useNavigate()
   const { config } = useConfigStore()
+  const addNotification = useNotificationsStore(state => state.addNotification)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
     tipo: '',
     precioHora: 0,
-    horaApertura: config.horaApertura || '08:00',
-    horaCierre: config.horaCierre || '22:00',
+    horaApertura: config.horaAperturaGlobal || '08:00',
+    horaCierre: config.horaCierreGlobal || '22:00',
     diasDisponibles: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
     descripcion: '',
     estado: 'disponible'
@@ -105,10 +107,12 @@ const NuevaCancha = () => {
     try {
       await axios.post('/api/canchas', formData)
       toast.success('Cancha creada exitosamente')
+      addNotification('Se creó una nueva cancha', 'success')
       navigate('/canchas')
     } catch (error) {
       console.error('Error al crear cancha:', error)
       toast.error('Error al crear la cancha. Por favor, intenta de nuevo.')
+      addNotification('Error al crear la cancha', 'error')
     } finally {
       setLoading(false)
     }

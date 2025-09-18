@@ -16,8 +16,23 @@ const Header = ({ sidebarOpen, setSidebarOpen }: HeaderProps) => {
     clear
   } = useNotificationsStore()
   const [open, setOpen] = React.useState(false)
+  const panelRef = React.useRef<HTMLDivElement | null>(null)
 
   const unread = notifications.filter(n => !n.read).length
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside)
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
 
   function formatTime(ts: number) {
     const d = new Date(ts)
@@ -76,10 +91,15 @@ const Header = ({ sidebarOpen, setSidebarOpen }: HeaderProps) => {
                   {unread}
                 </span>
               )}
+              {/* Punto verde indicativo de novedades recientes */}
+              {notifications.length > 0 && notifications.some(n => !n.read) && (
+                <span className="absolute top-0 left-0 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              )}
             </button>
 
             {open && (
               <div
+                ref={panelRef}
                 className="fixed top-[4rem] right-4 lg:right-auto lg:left-[calc(16rem+1rem)] w-80 max-h-[70vh] flex flex-col bg-background-900 bg-black text-white border border-primary/60 rounded-md shadow-2xl overflow-hidden z-[2000]"
               >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-primary/40">

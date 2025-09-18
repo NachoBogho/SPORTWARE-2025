@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { toast } from 'react-hot-toast'
+import { useNotificationsStore } from '../stores/notificationsStore'
 
 interface FormData {
   nombre: string
@@ -17,6 +18,7 @@ interface FormData {
 
 const NuevoCliente = () => {
   const navigate = useNavigate()
+  const addNotification = useNotificationsStore(state => state.addNotification)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     nombre: '',
@@ -57,6 +59,7 @@ const NuevoCliente = () => {
     try {
       await axios.post('/api/clientes', formData)
       toast.success('Cliente creado exitosamente')
+      addNotification('Se creó un nuevo cliente', 'success')
       navigate('/clientes')
     } catch (error: any) {
       console.error('Error al crear cliente:', error)
@@ -66,6 +69,7 @@ const NuevoCliente = () => {
       } else {
         toast.error(msg)
       }
+      addNotification('Error al crear el cliente', 'error')
     } finally {
       setLoading(false)
     }

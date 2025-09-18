@@ -5,6 +5,7 @@ import axios from 'axios'
 import { format, addHours, parseISO } from 'date-fns'
 import { ArrowLeftIcon, CalendarIcon, ClockIcon, UserIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { useConfigStore } from '../stores/configStore'
+import { useNotificationsStore } from '../stores/notificationsStore'
 
 interface Cliente {
   _id: string
@@ -35,9 +36,48 @@ interface FormData {
   pagado: boolean
 }
 
+// Helper para convertir ISO (yyyy-MM-dd) a dd/mm/aaaa
+function isoToDDMMYYYY(iso: string) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+// Helper para convertir dd/mm/aaaa a ISO (yyyy-MM-dd). Devuelve null si inválido
+function ddmmyyyyToISO(raw: string): string | null {
+  const cleaned = raw.replace(/[^0-9/]/g, '')
+  const parts = cleaned.split('/')
+  if (parts.length !== 3) return null
+  let [dd, mm, yyyy] = parts
+  if (dd.length !== 2 || mm.length !== 2 || yyyy.length !== 4) return null
+  const day = parseInt(dd, 10)
+  const month = parseInt(mm, 10)
+  const year = parseInt(yyyy, 10)
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null
+  const date = new Date(year, month - 1, day)
+  // Validar que el objeto Date mantiene el mismo día/mes (detecta fechas inválidas como 31/02)
+  if (date.getFullYear() !== year || date.getMonth() + 1 !== month || date.getDate() !== day) return null
+  const iso = date.toISOString().slice(0, 10)
+  return iso
+}
+
+// Helper para generar intervalos de 30 minutos en formato 24h
+function buildTimeSlots() {
+  const slots: string[] = []
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hh = h.toString().padStart(2, '0')
+      const mm = m.toString().padStart(2, '0')
+      slots.push(`${hh}:${mm}`)
+    }
+  }
+  return slots
+}
+const TIME_SLOTS = buildTimeSlots()
+
 const NuevaReserva = () => {
   const navigate = useNavigate()
   const { config } = useConfigStore()
+  const addNotification = useNotificationsStore(state => state.addNotification)
   
   const [formData, setFormData] = useState<FormData>({
     cancha: '',
@@ -62,6 +102,9 @@ const NuevaReserva = () => {
   const [showClienteDropdown, setShowClienteDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const [clienteValido, setClienteValido] = useState(true)
+  const todayIso = format(new Date(), 'yyyy-MM-dd')
+  const [fechaInput, setFechaInput] = useState(() => isoToDDMMYYYY(formData.fecha))
+  const [fechaError, setFechaError] = useState<string>('')
 
   const safeLower = (v: any) => (v ?? '').toString().toLowerCase()
 
@@ -211,9 +254,33 @@ const NuevaReserva = () => {
     }
   }
   
+  function handleFechaInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    // Permitir sólo dígitos y '/'
+    const sanitized = value.replace(/[^0-9/]/g, '')
+    setFechaInput(sanitized)
+    const iso = ddmmyyyyToISO(sanitized)
+    if (!iso) {
+      setFechaError('Formato inválido (dd/mm/aaaa)')
+      return
+    }
+    // Validar mínimo hoy
+    if (iso < todayIso) {
+      setFechaError('La fecha no puede ser anterior a hoy')
+    } else {
+      setFechaError('')
+    }
+    setFormData(prev => ({ ...prev, fecha: iso }))
+  }
+
+  // Ajustar validación al enviar si hay error de fecha
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    if (fechaError || !ddmmyyyyToISO(fechaInput)) {
+      setFechaError(fechaError || 'Formato inválido (dd/mm/aaaa)')
+      return
+    }
+
     if (!formData.cliente) {
       setClienteValido(false)
       setShowClienteDropdown(true)
@@ -247,7 +314,7 @@ const NuevaReserva = () => {
         pagado: formData.pagado,
         observaciones: formData.observaciones
       })
-      
+      addNotification('Se creó una nueva reserva', 'success')
       setSuccess(true)
       setTimeout(() => {
         navigate('/reservas')
@@ -255,17 +322,18 @@ const NuevaReserva = () => {
     } catch (err: any) {
       console.error('Error al crear la reserva:', err)
       setError(err.response?.data?.mensaje || err.response?.data?.message || 'Error al crear la reserva. Por favor, intenta de nuevo.')
+      addNotification('Error al crear la reserva', 'error')
     } finally {
       setLoading(false)
     }
   }
   
   return (
-    <div className="space-y-6">
-      <div className="flex items-center">
+    <div className="space-y-6 ">
+      <div className="flex items-center justify-between">
         <button 
           onClick={() => navigate('/reservas')} 
-          className="mr-4 text-background-500 hover:text-background-700"
+          className="mr-4 text-background-500 hover:text-background-700 "
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </button>
@@ -326,7 +394,7 @@ const NuevaReserva = () => {
               required
             />
             {showClienteDropdown && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-background-200 rounded-md shadow-lg max-h-60 overflow-auto">
+              <div className="absolute z-20 w-full mt-1 bg-background-50 border border-background-200 rounded-md shadow-lg max-h-60 overflow-auto text-background-900">
                 {clientesFiltrados.length > 0 ? (
                   clientesFiltrados.map(cliente => (
                     <div
@@ -334,7 +402,7 @@ const NuevaReserva = () => {
                       className="px-4 py-2 hover:bg-background-100 cursor-pointer"
                       onClick={() => handleClienteSelect(cliente)}
                     >
-                      <div className="font-medium">{cliente.nombre} {cliente.apellido}</div>
+                      <div className="font-medium text-background-900">{cliente.nombre} {cliente.apellido}</div>
                       <div className="text-sm text-background-500">{cliente.email}</div>
                     </div>
                   ))
@@ -357,15 +425,33 @@ const NuevaReserva = () => {
               Fecha
             </label>
             <input
-              type="date"
+              type="text"
               id="fecha"
               name="fecha"
-              value={formData.fecha}
-              onChange={handleInputChange}
-              className="input"
-              min={format(new Date(), 'yyyy-MM-dd')}
+              value={fechaInput}
+              onChange={handleFechaInputChange}
+              onBlur={() => {
+                // Autocompletar con ceros si el usuario ingresó 8 dígitos seguidos (ddmmaaaa)
+                if (/^\d{8}$/.test(fechaInput)) {
+                  const dd = fechaInput.slice(0,2)
+                  const mm = fechaInput.slice(2,4)
+                  const aaaa = fechaInput.slice(4)
+                  const nuevo = `${dd}/${mm}/${aaaa}`
+                  setFechaInput(nuevo)
+                  const iso = ddmmyyyyToISO(nuevo)
+                  if (iso && iso >= todayIso) {
+                    setFormData(prev => ({ ...prev, fecha: iso }))
+                    setFechaError('')
+                  }
+                }
+              }}
+              placeholder="dd/mm/aaaa"
+              className={`input ${fechaError ? 'border-red-400 focus:border-red-500' : ''}`}
+              inputMode="numeric"
+              maxLength={10}
               required
             />
+            {fechaError && <p className="text-xs text-red-500">{fechaError}</p>}
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -374,15 +460,19 @@ const NuevaReserva = () => {
                 <ClockIcon className="h-5 w-5 mr-2 text-background-500" />
                 Hora inicio
               </label>
-              <input
-                type="time"
+              <select
                 id="horaInicio"
                 name="horaInicio"
                 value={formData.horaInicio}
                 onChange={handleInputChange}
-                className="input"
+                className="select"
                 required
-              />
+              >
+                <option value="">Seleccionar</option>
+                {TIME_SLOTS.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
             
             <div className="space-y-2">
@@ -390,15 +480,19 @@ const NuevaReserva = () => {
                 <ClockIcon className="h-5 w-5 mr-2 text-background-500" />
                 Hora fin
               </label>
-              <input
-                type="time"
+              <select
                 id="horaFin"
                 name="horaFin"
                 value={formData.horaFin}
                 onChange={handleInputChange}
-                className="input"
+                className="select"
                 required
-              />
+              >
+                <option value="">Seleccionar</option>
+                {TIME_SLOTS.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
           

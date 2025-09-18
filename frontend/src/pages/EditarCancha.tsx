@@ -4,6 +4,20 @@ import axios from 'axios'
 import { toast } from 'react-hot-toast'
 import { useConfigStore } from '../stores/configStore'
 
+// Normalizadores de días
+const toUI = (d: string) => {
+  const s = (d || '').toLowerCase()
+  if (s === 'miercoles') return 'miércoles'
+  if (s === 'sabado') return 'sábado'
+  return s
+}
+const toServer = (d: string) => {
+  const s = (d || '').toLowerCase()
+  if (s === 'miércoles') return 'miercoles'
+  if (s === 'sabado' || s === 'sábado') return 'sábado'
+  return s
+}
+
 interface FormData {
   nombre: string
   tipo: string
@@ -26,8 +40,8 @@ const EditarCancha = () => {
     nombre: '',
     tipo: '',
     precioHora: 0,
-    horaApertura: config.horaApertura || '08:00',
-    horaCierre: config.horaCierre || '22:00',
+    horaApertura: config.horaAperturaGlobal || '08:00',
+    horaCierre: config.horaCierreGlobal || '22:00',
     diasDisponibles: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
     descripcion: '',
     estado: 'disponible'
@@ -59,13 +73,16 @@ const EditarCancha = () => {
     const fetchCancha = async () => {
       try {
         const response = await axios.get(`/api/canchas/${id}`)
+        const dias = Array.isArray(response.data.diasDisponibles)
+          ? response.data.diasDisponibles.map((d: string) => toUI(d))
+          : ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         setFormData({
           nombre: response.data.nombre || '',
           tipo: response.data.tipo || '',
           precioHora: response.data.precioHora || 0,
-          horaApertura: response.data.horaApertura || config.horaApertura || '08:00',
-          horaCierre: response.data.horaCierre || config.horaCierre || '22:00',
-          diasDisponibles: response.data.diasDisponibles || ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
+          horaApertura: response.data.horaApertura || config.horaAperturaGlobal || '08:00',
+          horaCierre: response.data.horaCierre || config.horaCierreGlobal || '22:00',
+          diasDisponibles: dias,
           descripcion: response.data.descripcion || '',
           estado: response.data.estado || 'disponible'
         })
@@ -80,7 +97,7 @@ const EditarCancha = () => {
     if (id) {
       fetchCancha()
     }
-  }, [id, config.horaApertura, config.horaCierre])
+  }, [id, config.horaAperturaGlobal, config.horaCierreGlobal])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement
@@ -133,7 +150,11 @@ const EditarCancha = () => {
     setLoading(true)
 
     try {
-      await axios.put(`/api/canchas/${id}`, formData)
+      const payload = {
+        ...formData,
+        diasDisponibles: formData.diasDisponibles.map((d) => toServer(d))
+      }
+      await axios.put(`/api/canchas/${id}`, payload)
       toast.success('Cancha actualizada exitosamente')
       navigate('/canchas')
     } catch (error) {
