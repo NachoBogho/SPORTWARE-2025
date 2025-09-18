@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format, addHours, parseISO, isAfter, isBefore } from 'date-fns'
 import { ArrowLeftIcon, CalendarIcon, ClockIcon, UserIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { useConfigStore } from '../stores/configStore'
@@ -88,9 +89,9 @@ const EditarReserva = () => {
     const fetchData = async () => {
       try {
         const [reservaRes, clientesRes, canchasRes] = await Promise.all([
-          axios.get(`/api/reservas/${id}`),
-          axios.get('/api/clientes'),
-          axios.get('/api/canchas')
+          axios.get(`${API_BASE}/api/reservas/${id}`),
+          axios.get(`${API_BASE}/api/clientes`),
+          axios.get(`${API_BASE}/api/canchas`)
         ])
         
         const reserva: Reserva = reservaRes.data

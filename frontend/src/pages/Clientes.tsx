@@ -2,6 +2,7 @@ import React from 'react'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { PlusIcon, MagnifyingGlassIcon, PencilIcon, TrashIcon, PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
 
 interface Cliente {
@@ -50,7 +51,7 @@ const Clientes = () => {
     setLoading(true)
     setError('')
     try {
-      const response = await axios.get('/api/clientes')
+  const response = await axios.get(`${API_BASE}/api/clientes`)
       setClientes(response.data)
       setFilteredClientes(response.data)
     } catch (err) {
@@ -65,7 +66,7 @@ const Clientes = () => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer.')) return
     
     try {
-      await axios.delete(`/api/clientes/${id}`)
+  await axios.delete(`${API_BASE}/api/clientes/${id}`)
       fetchClientes()
     } catch (err: any) {
       console.error('Error al eliminar el cliente:', err)

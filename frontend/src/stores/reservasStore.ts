@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format } from 'date-fns'
 
 export interface Reserva {
@@ -41,7 +42,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.get('/api/reservas')
+  const response = await axios.get(`${API_BASE}/reservas`)
       set({ reservas: response.data, loading: false })
     } catch (error) {
       console.error('Error al obtener reservas:', error)
@@ -54,7 +55,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     
     try {
       const fechaFormateada = format(fecha, 'yyyy-MM-dd')
-      const response = await axios.get(`/api/reservas/fecha/${fechaFormateada}`)
+  const response = await axios.get(`${API_BASE}/reservas/fecha/${fechaFormateada}`)
       set({ reservas: response.data, loading: false })
     } catch (error) {
       console.error('Error al obtener reservas por fecha:', error)
@@ -66,7 +67,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.get(`/api/reservas/${id}`)
+  const response = await axios.get(`${API_BASE}/reservas/${id}`)
       set({ reservaActual: response.data, loading: false })
     } catch (error) {
       console.error('Error al obtener la reserva:', error)
@@ -78,7 +79,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.post('/api/reservas', reserva)
+  const response = await axios.post(`${API_BASE}/reservas`, reserva)
       
       // Actualizar la lista de reservas
       const reservasActualizadas = [...get().reservas, response.data]
@@ -99,7 +100,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.put(`/api/reservas/${id}`, reserva)
+  const response = await axios.put(`${API_BASE}/reservas/${id}`, reserva)
       
       // Actualizar la lista de reservas
       const reservasActualizadas = get().reservas.map(r => 
@@ -127,7 +128,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.patch(`/api/reservas/${id}/cancelar`)
+  const response = await axios.patch(`${API_BASE}/reservas/${id}/cancelar`)
       
       // Actualizar la lista de reservas
       const reservasActualizadas = get().reservas.map(r => 
@@ -155,7 +156,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.patch(`/api/reservas/${id}/pagar`)
+  const response = await axios.patch(`${API_BASE}/reservas/${id}/pagar`)
       
       // Actualizar la lista de reservas
       const reservasActualizadas = get().reservas.map(r => 
@@ -183,7 +184,7 @@ export const useReservasStore = create<ReservasState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      await axios.delete(`/api/reservas/${id}`)
+  await axios.delete(`${API_BASE}/reservas/${id}`)
       
       // Actualizar la lista de reservas
       const reservasActualizadas = get().reservas.filter(r => r._id !== id)

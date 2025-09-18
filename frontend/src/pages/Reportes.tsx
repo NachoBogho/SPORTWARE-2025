@@ -1,6 +1,7 @@
 import React from 'react'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Bar, Line, Pie } from 'react-chartjs-2'
@@ -99,7 +100,7 @@ const Reportes = () => {
     try {
       if (tipoReporte === 'ingresos') {
         // Backend devuelve ingresoTotal, ingresosPorTipo, ingresosPorDia
-        const { data } = await axios.get('/api/reportes/ingresos', { params: { fechaInicio, fechaFin } })
+  const { data } = await axios.get(`${API_BASE}/api/reportes/ingresos`, { params: { fechaInicio, fechaFin } })
         setReporteIngresos({
           total: Number(data?.ingresoTotal || 0),
           porTipo: (data?.ingresosPorTipo && typeof data.ingresosPorTipo === 'object') ? data.ingresosPorTipo : {},
@@ -109,7 +110,7 @@ const Reportes = () => {
         setReporteUso(null); setReporteClientes(null)
       } else if (tipoReporte === 'uso') {
         // Endpoint real: /uso-canchas
-        const { data } = await axios.get('/api/reportes/uso-canchas', { params: { fechaInicio, fechaFin } })
+  const { data } = await axios.get(`${API_BASE}/api/reportes/uso-canchas`, { params: { fechaInicio, fechaFin } })
         // data.usoPorCancha: id -> { nombre, tipo, cantidadReservas, horasReservadas, ingresos }
         const porCancha: Record<string, number> = {}
         const porTipo: Record<string, number> = {}
@@ -134,7 +135,7 @@ const Reportes = () => {
         })
         setReporteIngresos(null); setReporteClientes(null)
       } else if (tipoReporte === 'clientes') {
-        const { data } = await axios.get('/api/reportes/clientes', { params: { fechaInicio, fechaFin } })
+  const { data } = await axios.get(`${API_BASE}/api/reportes/clientes`, { params: { fechaInicio, fechaFin } })
         // Transformar estructura backend -> frontend esperado
         const clientesTransformados = Array.isArray(data?.clientes)
           ? data.clientes.map((item: any) => ({

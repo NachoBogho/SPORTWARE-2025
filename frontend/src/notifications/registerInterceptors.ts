@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 import { useNotificationsStore } from '../stores/notificationsStore'
+import { API_BASE } from '../api'
 
 let registered = false
 
@@ -18,14 +19,17 @@ function attach(instance: AxiosInstance) {
       try {
         const { config, status, data } = response
         const method = (config.method || '').toLowerCase()
-        // Normalizar URL (quitar dominio)
+        // Normalizar URL (quitar dominio y base)
         let raw = config.url || ''
         if (raw.startsWith('http')) {
           try { raw = new URL(raw).pathname } catch {}
         }
         // Eliminar query
         raw = raw.split('?')[0]
-
+        // Eliminar API_BASE si está presente
+        if (raw.startsWith(API_BASE)) {
+          raw = raw.slice(API_BASE.length)
+        }
         const isReservasBase = raw === '/api/reservas'
         const isReservasItem = raw.startsWith('/api/reservas/')
 
@@ -55,7 +59,10 @@ function attach(instance: AxiosInstance) {
           try { raw = new URL(raw).pathname } catch {}
         }
         raw = raw.split('?')[0]
-
+        // Eliminar API_BASE si está presente
+        if (raw.startsWith(API_BASE)) {
+          raw = raw.slice(API_BASE.length)
+        }
         const addNotification = useNotificationsStore.getState().addNotification
         const isReservasBase = raw === '/api/reservas'
         const isReservasItem = raw.startsWith('/api/reservas/')

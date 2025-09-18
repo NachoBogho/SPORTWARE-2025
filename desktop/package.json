@@ -1,0 +1,42 @@
+{
+  "name": "sportware-desktop",
+  "version": "1.0.0",
+  "main": "dist/electron-main.js",
+  "scripts": {
+    "dev": "concurrently -k -r \"cross-env NODE_ENV=development npm:dev:electron\" \"cross-env NODE_ENV=development npm:dev:web\"",
+    "dev:electron": "wait-on tcp:5173 && ts-node src/electron-main.ts",
+    "dev:web": "cd ../frontend && npm run dev",
+    "build": "tsc",
+    "start": "node dist/electron-main.js",
+  "pack": "electron-builder --dir",
+  "dist": "electron-builder",
+  "electron": "node dist/electron-main.js"
+  ,
+  "postpack": "xcopy /E /I /Y ..\\frontend\\dist .\\dist\\win-unpacked\\resources\\frontend\\dist >nul 2>&1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.sportware.desktop",
+    "files": [
+      "dist/**/*",
+      "src/preload.js"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

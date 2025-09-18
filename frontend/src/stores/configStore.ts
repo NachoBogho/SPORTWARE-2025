@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import axios from 'axios'
+import { API_BASE } from '../api'
 
 interface Configuracion {
   _id?: string
@@ -46,11 +47,9 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   fetchConfig: async () => {
     // Evitar múltiples solicitudes simultáneas
     if (get().loading) return;
-    
     set({ loading: true, error: null })
-    
     try {
-      const response = await axios.get('/api/configuracion')
+      const response = await axios.get(`${API_BASE}/configuracion`)
       set({ config: response.data, loading: false })
     } catch (error) {
       console.error('Error al obtener la configuración:', error)
@@ -66,7 +65,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.put('/api/configuracion', newConfig)
+  const response = await axios.put(`${API_BASE}/configuracion`, newConfig)
       set({ config: response.data, loading: false })
       
       // Actualizar los colores CSS en tiempo real
@@ -89,7 +88,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     set({ loading: true, error: null })
     
     try {
-      const response = await axios.post('/api/configuracion/reset')
+  const response = await axios.post(`${API_BASE}/configuracion/reset`)
       set({ config: response.data.configuracion, loading: false })
       
       // Restablecer los colores CSS a los valores predeterminados

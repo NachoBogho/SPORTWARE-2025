@@ -2,6 +2,7 @@ import React from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format, addHours, parseISO } from 'date-fns'
 import { ArrowLeftIcon, CalendarIcon, ClockIcon, UserIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { useConfigStore } from '../stores/configStore'
@@ -113,8 +114,8 @@ const NuevaReserva = () => {
     const fetchData = async () => {
       try {
         const [clientesRes, canchasRes] = await Promise.all([
-          axios.get('/api/clientes'),
-          axios.get('/api/canchas/disponibles')
+          axios.get(`${API_BASE}/api/clientes`),
+          axios.get(`${API_BASE}/api/canchas/disponibles`)
         ])
         setClientes(clientesRes.data)
         setCanchas(canchasRes.data)
@@ -223,7 +224,7 @@ const NuevaReserva = () => {
           fechaFin = format(fechaFinDate, "yyyy-MM-dd'T'HH:mm")
         }
 
-        const { data } = await axios.get('/api/reservas/disponibilidad', {
+  const { data } = await axios.get(`${API_BASE}/api/reservas/disponibilidad`, {
           params: {
             cancha: formData.cancha,
             fechaInicio,
@@ -304,7 +305,7 @@ const NuevaReserva = () => {
         fechaFin = format(fechaFinDate, "yyyy-MM-dd'T'HH:mm")
       }
       
-      await axios.post('/api/reservas', {
+  await axios.post(`${API_BASE}/api/reservas`, {
         cancha: formData.cancha,
         cliente: formData.cliente,
         fechaInicio,

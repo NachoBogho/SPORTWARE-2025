@@ -2,6 +2,7 @@ import React from 'react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Bar, Doughnut } from 'react-chartjs-2'
@@ -48,7 +49,7 @@ const Dashboard = () => {
     let isMounted = true;
     const fetchDashboardData = async () => {
       try {
-        const response = await axios.get('/api/reportes/dashboard')
+  const response = await axios.get(`${API_BASE}/api/reportes/dashboard`)
         if (isMounted) {
           setData(response.data)
         }
@@ -106,11 +107,11 @@ const Dashboard = () => {
         // Intentar endpoint específico
         let disponibles: any[] = []
         try {
-          const { data } = await axios.get('/api/canchas/disponibles')
+          const { data } = await axios.get(`${API_BASE}/api/canchas/disponibles`)
           if (Array.isArray(data)) disponibles = data
         } catch {
           // Fallback: traer todas y filtrar por estado === 'disponible'
-          const { data } = await axios.get('/api/canchas')
+          const { data } = await axios.get(`${API_BASE}/api/canchas`)
           if (Array.isArray(data)) {
             disponibles = data.filter(c => c.estado === 'disponible')
           }

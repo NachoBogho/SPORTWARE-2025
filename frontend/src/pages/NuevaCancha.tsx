@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { toast } from 'react-hot-toast'
 import { useConfigStore } from '../stores/configStore'
 import { useNotificationsStore } from '../stores/notificationsStore'
@@ -105,7 +106,7 @@ const NuevaCancha = () => {
     setLoading(true)
 
     try {
-      await axios.post('/api/canchas', formData)
+  await axios.post(`${API_BASE}/api/canchas`, formData)
       toast.success('Cancha creada exitosamente')
       addNotification('Se creó una nueva cancha', 'success')
       navigate('/canchas')

@@ -4,14 +4,15 @@
   "description": "Sistema de gestión de canchas deportivas",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
-    "dev:react": "cd frontend && npm run dev",
-    "dev:electron": "nodemon --exec electron .",
-    "build": "npm run build:react && npm run build:electron",
-    "build:react": "cd frontend && npm run build",
-    "build:electron": "electron-builder",
-    "postinstall": "cd frontend && npm install && cd ../backend && npm install"
+  "start": "electron .",
+  "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
+  "dev:react": "cd frontend && npm run dev",
+  "dev:electron": "nodemon --exec electron .",
+  "dev-all": "concurrently -k -r \"cd backend && npm run dev\" \"cd frontend && npm run dev\" \"wait-on tcp:5173 && cd desktop && npm run dev:electron\"",
+  "build": "npm run build:react && npm run build:electron",
+  "build:react": "cd frontend && npm run build",
+  "build:electron": "electron-builder",
+  "postinstall": "cd frontend && npm install && cd ../backend && npm install"
   },
   "author": "",
   "license": "ISC",

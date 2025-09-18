@@ -2,6 +2,7 @@ import React from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { toast } from 'react-hot-toast'
 import { useNotificationsStore } from '../stores/notificationsStore'
 
@@ -57,7 +58,7 @@ const NuevoCliente = () => {
     setLoading(true)
 
     try {
-      await axios.post('/api/clientes', formData)
+  await axios.post(`${API_BASE}/api/clientes`, formData)
       toast.success('Cliente creado exitosamente')
       addNotification('Se creó un nuevo cliente', 'success')
       navigate('/clientes')

@@ -2,6 +2,7 @@ import React from 'react';
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { format, parseISO, isToday, isSameWeek, isSameMonth, isSameDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarIcon, PlusIcon, TrashIcon, PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -62,7 +63,7 @@ const Reservas = () => {
     setLoading(true)
     setError('')
     try {
-      const response = await axios.get('/api/reservas')
+  const response = await axios.get(`${API_BASE}/api/reservas`)
       setAllReservas(response.data)
     } catch (err) {
       console.error('Error al cargar reservas:', err)

@@ -2,6 +2,7 @@ import React from 'react'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE } from '../api'
 import { PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { useConfigStore } from '../stores/configStore'
 
@@ -37,7 +38,7 @@ const Canchas = () => {
     setLoading(true)
     setError('')
     try {
-      const response = await axios.get('/api/canchas')
+  const response = await axios.get(`${API_BASE}/api/canchas`)
       setCanchas(response.data)
     } catch (err) {
       console.error('Error al cargar canchas:', err)
@@ -49,7 +50,7 @@ const Canchas = () => {
 
   const handleCambiarEstado = async (id: string, nuevoEstado: 'disponible' | 'mantenimiento' | 'inactiva') => {
     try {
-      await axios.put(`/api/canchas/${id}/estado`, { estado: nuevoEstado })
+  await axios.put(`${API_BASE}/api/canchas/${id}/estado`, { estado: nuevoEstado })
       fetchCanchas()
     } catch (err) {
       console.error('Error al cambiar el estado de la cancha:', err)
@@ -61,7 +62,7 @@ const Canchas = () => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar esta cancha? Esta acción no se puede deshacer.')) return
     
     try {
-      await axios.delete(`/api/canchas/${id}`)
+  await axios.delete(`${API_BASE}/api/canchas/${id}`)
       fetchCanchas()
     } catch (err: any) {
       console.error('Error al eliminar la cancha:', err)
